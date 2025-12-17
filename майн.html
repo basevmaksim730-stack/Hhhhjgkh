@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Minecraft 2D Mobile Full</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4CAF50">
+<style>
+html,body{margin:0;padding:0;background:#87ceeb;touch-action:none;overflow:hidden}
+canvas{display:block}
+#ui{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10}
+.btn{width:52px;height:52px;border-radius:12px;background:#333a;color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center}
+#hotbar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.slot{width:38px;height:38px;border:2px solid #fff6}
+.active{border-color:yellow}
+#cheats{position:fixed;top:10px;right:10px;background:#0008;color:#fff;padding:8px;border-radius:10px;font-size:14px}
+#inventory{position:fixed;bottom:150px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.inv-slot{width:40px;height:40px;border:2px solid #fff6;background:#222c;display:flex;align-items:center;justify-content:center;color:white;font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hotbar"></div>
+<div id="inventory"></div>
+<div id="ui">
+<div class="btn" id="left">◀</div>
+<div class="btn" id="jump">▲</div>
+<div class="btn" id="right">▶</div>
+<div class="btn" id="break">⛏</div>
+<div class="btn" id="place">⬛</div>
+</div>
+<div id="cheats">
+<div><input type="checkbox" id="fly"> Fly</div>
+<div><input type="checkbox" id="god"> God</div>
+</div>
+<script>
+if('serviceWorker'in navigator){navigator.serviceWorker.register('sw.js');}
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
+resize();addEventListener('resize',resize);
+const TILE=32,W=200,H=60,colors=['transparent','#3cb043','#8b5a2b','#777','#deb887','#87ceeb','#fff'];
+let world=JSON.parse(localStorage.getItem('world'))||Array.from({length:H},(_,y)=>Array.from({length:W},(_,x)=>y>35?3:y===35?1:y>30?2:0));
+const player={x:50,y:20,vx:0,vy:0,hp:20,onGround:false};
+let camX=0,camY=0;
+const inventory=[1,2,3,4,5,6],selected=0;
+const hotbar=document.getElementById('hotbar'),inv=document.getElementById('inventory');
+function drawHotbar(){hotbar.innerHTML='';inventory.forEach((b,i)=>{const d=document.createElement('div');d.className='slot'+(i===selected?' active':'');d.style.background=colors[b];d.onclick=()=>{selected=i;drawHotbar()};hotbar.appendChild(d);});}
+drawHotbar();
+function drawInventory(){inv.innerHTML='';inventory.forEach((b,i)=>{const d=document.createElement('div');d.className='inv-slot';d.style.background=colors[b];d.innerText=b;inv.appendChild(d);});}
+drawInventory();
+const keys={};
+function touch(id,k){id.ontouchstart=e=>{e.preventDefault();keys[k]=true};id.ontouchend=e=>{e.preventDefault();keys[k]=false}}
+touch(left,'l');touch(right,'r');touch(jump,'j');
+break.onclick=()=>act('break');place.onclick=()=>act('place');
+function act(t){const tx=Math.floor((player.x+16)/TILE),ty=Math.floor((player.y+32)/TILE);if(t==='break'&&world[ty]?.[tx])world[ty][tx]=0;if(t==='place'&&world[ty]?.[tx]===0)world[ty][tx]=inventory[selected];save();}
+let mobs=[{x:120,y:20,vx:1,hp:10},{x:160,y:20,vx:-1,hp:10}];
+function update(){
+if(keys.l)player.vx=-2;else if(keys.r)player.vx=2;else player.vx*=0.8;
+if(keys.j&&player.onGround){player.vy=-8;player.onGround=false}
+if(!fly.checked)player.vy+=0.4;
+player.x+=player.vx;player.y+=player.vy;
+const gx=Math.floor(player.x/TILE),gy=Math.floor((player.y+32)/TILE);
+if(world[gy]?.[gx]&&!fly.checked){player.y=Math.floor(player.y/TILE)*TILE;player.vy=0;player.onGround=true}
+mobs.forEach(m=>{m.x+=m.vx;if(Math.abs(m.x-player.x)<20&&!god.checked)player.hp-=0.02;if(m.x<0||m.x>W*TILE)m.vx*=-1});
+camX=player.x-canvas.width/2;camY=player.y-canvas.height/2;
+}
+function draw(){ctx.clearRect(0,0,canvas.width,canvas.height);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){const b=world[y][x];if(b){ctx.fillStyle=colors[b];ctx.fillRect(x*TILE-camX,y*TILE-camY,TILE,TILE)}}
+ctx.fillStyle='red';ctx.fillRect(player.x-camX,player.y-camY,32,32);
+ctx.fillStyle='green';mobs.forEach(m=>ctx.fillRect(m.x-camX,m.y-camY,32,32));
+ctx.fillStyle='white';ctx.fillText('HP:'+Math.floor(player.hp),10,20);
+}
+function save(){localStorage.setItem('world',JSON.stringify(world))}
+function loop(){update();draw();requestAnimationFrame(loop)}loop();
+</script>
+</body>
+</html>
